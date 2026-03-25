@@ -1,10 +1,32 @@
 use cmake::Config;
-use std::{env, path::PathBuf};
+use std::{env, fs, path::PathBuf};
+
+fn copy_dir(src: &PathBuf, dst: &PathBuf) {
+    fs::create_dir_all(dst).unwrap();
+    for entry in fs::read_dir(src).unwrap() {
+        let entry = entry.unwrap();
+        let dst_path = dst.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_dir(&entry.path(), &dst_path);
+        } else {
+            fs::copy(entry.path(), &dst_path).unwrap();
+        }
+    }
+}
 
 fn main() {
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    // EPANET's CMake generates epanet_output_export.h and copies it back into
+    // CMAKE_CURRENT_SOURCE_DIR/include. That write would fail when building from
+    // the crates.io registry, where the source tree is read-only. Copy the EPANET
+    // source into OUT_DIR first so all CMake-generated files land in a writable location.
+    let epanet_out = out_path.join("EPANET");
+    copy_dir(&PathBuf::from("EPANET"), &epanet_out);
+
     let dynamic_link = cfg!(feature = "dynamic-link");
 
-    let mut cmake_cfg = Config::new("EPANET");
+    let mut cmake_cfg = Config::new(&epanet_out);
     cmake_cfg.define("CMAKE_BUILD_TYPE", "Release");
 
     if !dynamic_link {
@@ -43,15 +65,8 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=m");
     }
 
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
     let mut builder = bindgen::Builder::default()
-        // The input header we would like to generate
-        // bindings for.
         .header("wrapper.h")
-        // Tell cargo to invalidate the built crate whenever any of the
-        // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()));
 
     if !dynamic_link {
@@ -60,13 +75,9 @@ fn main() {
     }
 
     let bindings = builder
-        // Finish the builder and generate the bindings.
         .generate()
-        // Unwrap the Result and panic on failure.
         .expect("Unable to generate bindings");
 
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
