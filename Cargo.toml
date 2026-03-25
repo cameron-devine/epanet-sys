@@ -1,0 +1,20 @@
+[package]
+name = "epanet-sys"
+version = "2.3.0"
+edition = "2021"
+description = "Raw FFI bindings to the EPANET 2.3 water distribution network simulator"
+license = "MIT"
+repository = "https://github.com/cameron-devine/epanet-sys"
+readme = "README.md"
+keywords = ["epanet", "water", "hydraulics", "ffi", "sys"]
+categories = ["external-ffi-bindings", "science"]
+links = "epanet2"
+
+[features]
+default = ["static-link"]
+static-link = []
+dynamic-link = []
+
+[build-dependencies]
+bindgen = "0.72.0"
+cmake = "0.1.57"
